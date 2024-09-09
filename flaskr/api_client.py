@@ -1,5 +1,5 @@
 import aiohttp
-from app.config import settings
+from flaskr.config import settings
 
 async def fetch_disaster_data():
     async with aiohttp.ClientSession() as session:
