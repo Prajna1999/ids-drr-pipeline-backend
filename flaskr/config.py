@@ -6,7 +6,6 @@ class Settings(BaseSettings):
     API_KEY: str
     DATABASE_URL: str
     PORT: str
-    JWT_SECRET_KEY: str
 
     class Config:
         env_file = ".env"
