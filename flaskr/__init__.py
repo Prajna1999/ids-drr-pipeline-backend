@@ -3,8 +3,9 @@
 from flask import Flask, jsonify, request, g
 from flask_restful import Api, Resource
 from functools import wraps
-from flaskr.api_client import fetch_disaster_data
+from flaskr.api_client import fetch_disaster_data, fetch_consolidated_flood_data
 from asgiref.sync import async_to_sync
+from datetime import datetime, timedelta
 import requests
 
 # Decorator for verifying the JWT
@@ -35,11 +36,31 @@ class HealthCheck(Resource):
         return {"status": "healthy", "message": "Service is running", "database": "connected" if isDbConnected else "disconnected"}, 200
 
 
-class DistrictData(Resource):
+class ConsolidatedFloodData(Resource):
     @token_required
     def get(self):
         try:
-            data = async_to_sync(fetch_disaster_data)()
+            from_date = request.args.get('fromDate')
+            to_date = request.args.get('toDate')
+
+            if not from_date or not to_date:
+                return {
+                    "error": "Both fromDate and toDAte are required"
+                }, 400
+            try:
+                datetime.strptime(from_date, "%Y-%m-%d")
+                datetime.strptime(to_date, "%Y-%m-%d")
+
+            except ValueError:
+                return {"error": "Invalid date format. Use YYYY-MM-DD"}, 400
+
+            if from_date > to_date:
+                return {"error": "fromDate cannnot be after toDate"}, 400
+
+            # call the api
+            data = async_to_sync(fetch_consolidated_flood_data)(
+                from_date, to_date)
+
             return {"data": data}, 200
         except Exception as e:
             return {"error": str(e)}, 500
@@ -47,12 +68,12 @@ class DistrictData(Resource):
 
 class Login(Resource):
     def post(self):
-        username = request.json.get('username', None)
+        identifier = request.json.get('identifier', None)
         password = request.json.get('password', None)
 
         # Call the external authentication API
         response = requests.post('https://drims.veldev.com/api/auth/local',
-                                 json={"identifier": username, "password": password})
+                                 json={"identifier": identifier, "password": password})
 
         if response.status_code == 200:
             return response.json(), 200
@@ -66,7 +87,7 @@ def create_app():
 
     # Add routes here
     api.add_resource(HealthCheck, '/')
-    api.add_resource(DistrictData, '/api/v1/districts')
-    api.add_resource(Login, '/login')
+    api.add_resource(ConsolidatedFloodData, '/api/v1/flood/consolidated')
+    api.add_resource(Login, '/api/v1/login')
 
     return app
