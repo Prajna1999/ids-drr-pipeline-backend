@@ -1,36 +1,37 @@
 # flaskr/api_client.py
 
 import aiohttp
-from flaskr.config import settings
 from flask import g
 from urllib.parse import urljoin
 
 
-async def fetch_disaster_data():
-    token = g.token
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"{settings.API_URL}",
-                               headers={"Authorization": f"Bearer {token}"}) as response:
-            return await response.json()
-
-
 async def fetch_consolidated_flood_data(from_date, to_date):
     token = g.token
-    base_url = "https://drims.veldev.com/api"
-    endpoint = f"/reports/flood/getStateCumulativeData"
+    base_url = "https://drims.veldev.com"  # Make sure this is the correct base URL
+    endpoint = "/reports/flood/getStateCumulativeData"
 
     params = {
         "fromDate": from_date,
         "toDate": to_date
     }
 
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
+    headers = {"Authorization": f"Bearer {token}"}
+
     async with aiohttp.ClientSession() as session:
         url = urljoin(base_url, endpoint)
         async with session.get(url, params=params, headers=headers) as response:
+            content_type = response.headers.get('Content-Type', '')
+
             if response.status == 200:
-                return await response.json()
+                if 'application/json' in content_type:
+                    return await response.json()
+                elif 'text/html' in content_type:
+                    # If it's HTML, return the text content for debugging
+                    text_content = await response.text()
+                    # First 200 characters for brevity
+                    return {"error": "Received HTML instead of JSON", "content": text_content[:200]}
+                else:
+                    return {"error": f"Unexpected content type: {content_type}"}
             else:
-                return {"error": f"Request failed with status {response.status}"}
+                # Handle error cases
+                return {"error": f"Request failed with status {response.status}", "content": await response.text()}

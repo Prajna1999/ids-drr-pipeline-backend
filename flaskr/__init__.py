@@ -1,9 +1,9 @@
 # flaskr/__init__.py
 
-from flask import Flask, jsonify, request, g
+from flask import Flask, jsonify, request, g, current_app
 from flask_restful import Api, Resource
 from functools import wraps
-from flaskr.api_client import fetch_disaster_data, fetch_consolidated_flood_data
+from flaskr.api_client import fetch_consolidated_flood_data
 from asgiref.sync import async_to_sync
 from datetime import datetime, timedelta
 import requests
@@ -54,6 +54,9 @@ class ConsolidatedFloodData(Resource):
             except ValueError:
                 return {"error": "Invalid date format. Use YYYY-MM-DD"}, 400
 
+            current_app.logger.info(
+                f"Fetching disaster data for dates: {from_date} to {to_date}")
+
             if from_date > to_date:
                 return {"error": "fromDate cannnot be after toDate"}, 400
 
@@ -61,8 +64,15 @@ class ConsolidatedFloodData(Resource):
             data = async_to_sync(fetch_consolidated_flood_data)(
                 from_date, to_date)
 
+            if "error" in data:
+                current_app.logger.error(
+                    f"Error fetching disaster data: {data['error']}")
+                return data, 500
+
             return {"data": data}, 200
         except Exception as e:
+            current_app.logger.exception(
+                "Unexpected error in ConsolidatedFloodData.get")
             return {"error": str(e)}, 500
 
 
